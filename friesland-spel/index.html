@@ -104,6 +104,19 @@ input[type=text]{font:inherit;font-size:1.4rem;padding:.6rem 1rem;border-radius:
 #end .big{font-family:var(--display);font-size:1.5rem}
 #end ul{margin:0;padding-left:1.2rem;text-align:left}
 .stars{font-size:2.2rem;letter-spacing:.1em}
+.scrollhint{position:sticky;bottom:-1.4rem;margin:-.4rem -1.6rem -1.4rem;padding:.5rem 0 .8rem;width:calc(100% + 3.2rem);background:linear-gradient(to bottom,transparent,var(--panel) 45%);font-family:var(--display);font-weight:600;color:var(--accent)}
+.scrollhint span{display:inline-block;animation:bounce 1s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+.diploma{border:4px double #c9a227;border-radius:14px;padding:.9rem 1.2rem;background:linear-gradient(135deg,#fff8dc,#ffe9a3);color:#3a2600;display:flex;flex-direction:column;gap:.15rem;align-items:center;max-width:100%;box-shadow:0 6px 18px rgba(0,0,0,.25);animation:pop .7s cubic-bezier(.2,1.4,.4,1) both}
+.diploma .medal{font-size:3rem;line-height:1;animation:spin 2.4s ease-in-out infinite}
+.diploma .kop{font-size:.8rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#8a6a0a}
+.diploma .titel{font-family:var(--display);font-size:1.6rem;font-weight:700}
+.diploma .naam{font-family:var(--display);font-size:2rem;font-weight:700;color:#b5471b}
+.diploma .sub{font-size:.95rem;color:#5a4a1a}
+@keyframes pop{0%{transform:scale(.3) rotate(-8deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes spin{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
+#end .endcard.win{border:3px solid #ffd166;box-shadow:0 0 40px rgba(255,209,102,.5)}
+@media (prefers-reduced-motion:reduce){.scrollhint span,.diploma,.diploma .medal{animation:none}}
 </style>
 </head>
 <body>
@@ -181,8 +194,10 @@ input[type=text]{font:inherit;font-size:1.4rem;padding:.6rem 1rem;border-radius:
     <div class="stars" id="stars"></div>
     <h1 id="endtitle"></h1>
     <p class="big" id="endtext"></p>
+    <div id="diploma" hidden></div>
     <div id="endlist"></div>
     <button class="btn" id="again" type="button">Nog een keer! 🔁</button>
+    <div class="scrollhint" id="scrollhint" hidden><span>⬇</span> Scroll naar beneden voor je score en de knop</div>
   </div>
 </section>
 
@@ -372,15 +387,34 @@ function endGame(){
     ? (state.fouten===0 ? 'Alles goed! Jij kent Friesland helemaal uit je hoofd.' : 'Maar één foutje. Dat is super knap!')
     : `Je had ${state.fouten} fouten. Oefen nog even en probeer het nog een keer.`;
   $('#endlist').innerHTML = state.foutItems.length ? `<p>Nog even oefenen:</p><ul>${state.foutItems.map(n=>`<li>${n}</li>`).join('')}</ul>` : '';
+  const card=$('#end .endcard'); card.classList.toggle('win',won);
+  const dip=$('#diploma'); dip.hidden=!won;
+  if(won){
+    const datum=new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'});
+    dip.innerHTML=`<div class="diploma"><div class="medal">🏅</div><div class="kop">Diploma</div><div class="titel">${state.fouten===0?'Kaartkampioen van Friesland':'Friesland-kenner'}</div><div class="naam">${state.naam}</div><div class="sub">${state.queue.length} vragen · ${state.fouten===0?'0 fouten, foutloos!':'1 foutje'} · ${datum}</div></div>`;
+    fanfare();
+  }
+  card.scrollTop=0; setTimeout(updateScrollHint,50);
   if(fw) fw.stop();
-  fw = new Fireworks($('#fw'), won ? state.naam : null); fw.start();
+  fw = new Fireworks($('#fw'), won ? state.naam : null, won); fw.start();
+}
+function updateScrollHint(){ const c=$('#end .endcard'); const more=c.scrollHeight-c.clientHeight-c.scrollTop>12; $('#scrollhint').hidden=!more; }
+$('#end .endcard').addEventListener('scroll',updateScrollHint); addEventListener('resize',updateScrollHint);
+function fanfare(){
+  if(!soundOn) return;
+  try{ actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const mel=[[523,0,.15],[523,.15,.15],[523,.3,.15],[659,.45,.4],[523,.9,.15],[659,1.05,.15],[784,1.2,.7],[1047,2.0,.9]];
+    mel.forEach(([f,t,d])=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='square'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001,actx.currentTime+t); g.gain.exponentialRampToValueAtTime(0.18,actx.currentTime+t+.03); g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+t+d);
+      o.connect(g).connect(actx.destination); o.start(actx.currentTime+t); o.stop(actx.currentTime+t+d+.05); });
+  }catch(e){}
 }
 $('#again').addEventListener('click',()=>{ if(fw) fw.stop(); $('#naam').value=state.naam; show('start'); $('#naam').focus(); });
 $('#nameform').addEventListener('submit',e=>{ e.preventDefault(); const n=$('#naam').value.trim(); if(n) startGame(n); });
 
 /* ===================== VUURWERK ===================== */
 class Fireworks{
-  constructor(canvas,name){ this.c=canvas; this.ctx=canvas.getContext('2d'); this.name=name; this.rockets=[]; this.parts=[]; this.letters=[]; this.t=0; this.phase='wait'; this.phaseT=0; this.running=false;
+  constructor(canvas,name,grand=false){ this.grand=grand; this.c=canvas; this.ctx=canvas.getContext('2d'); this.name=name; this.rockets=[]; this.parts=[]; this.letters=[]; this.t=0; this.phase='wait'; this.phaseT=0; this.running=false;
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; this.resize=this.resize.bind(this); }
   resize(){ const dpr=Math.min(2,devicePixelRatio||1); this.c.width=innerWidth*dpr; this.c.height=innerHeight*dpr; this.ctx.setTransform(dpr,0,0,dpr,0,0); this.W=innerWidth; this.H=innerHeight; this.targets=this.name?this.sampleText(this.name):[]; }
   sampleText(txt){
@@ -400,17 +434,29 @@ class Fireworks{
     for(const [x,y] of this.targets){ g.beginPath(); g.arc(x,y,2.2,0,7); g.fill(); }
     for(let i=0;i<60;i++){ g.fillStyle=`hsl(${Math.random()*360} 90% 65%)`; g.beginPath(); g.arc(Math.random()*this.W,Math.random()*this.H,Math.random()*3+1,0,7); g.fill(); } }
   launch(){ const x=this.W*(0.15+Math.random()*0.7); this.rockets.push({x, y:this.H, vx:(Math.random()-.5)*1.5, vy:-(this.H*0.012+Math.random()*this.H*0.006), hue:Math.random()*360}); }
-  explode(x,y,hue,n=90){ for(let i=0;i<n;i++){ const a=Math.random()*Math.PI*2, s=Math.random()*5+1.5; this.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay:0.010+Math.random()*0.012,hue:hue+Math.random()*40-20,size:Math.random()*2+1.5}); } }
+  explode(x,y,hue,n=90){
+    if(!this.grand){ for(let i=0;i<n*0.6;i++){ const a=Math.random()*Math.PI*2, s=Math.random()*4+1; this.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay:0.012+Math.random()*0.014,hue:hue+Math.random()*40-20,size:Math.random()*1.5+1}); } return; }
+    const kind=['burst','burst','ring','heart','willow','twin'][Math.floor(Math.random()*6)]; const N=Math.round(n*1.6);
+    for(let i=0;i<N;i++){
+      let a=Math.random()*Math.PI*2, s=Math.random()*6+2, h=hue+Math.random()*40-20, decay=0.008+Math.random()*0.010, size=Math.random()*2.2+1.6, g=0.05;
+      if(kind==='ring'){ a=i/N*Math.PI*2; s=6; }
+      else if(kind==='heart'){ const t=i/N*Math.PI*2; const hx=16*Math.pow(Math.sin(t),3), hy=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t)); a=Math.atan2(hy,hx); s=Math.hypot(hx,hy)*0.42; h=345+Math.random()*20; }
+      else if(kind==='willow'){ s=Math.random()*4+1.5; decay=0.005+Math.random()*0.004; g=0.09; h=45+Math.random()*15; size=1.6; }
+      else if(kind==='twin'){ h=(i%2?hue:hue+180); }
+      this.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay,hue:h,size,g,sparkle:kind!=='willow'&&Math.random()<0.3});
+    }
+  }
   loop(now){
     if(!this.running) return;
     const dt=Math.min(0.05,(now-this.last)/1000); this.last=now; this.t+=dt; this.phaseT-=dt;
     const g=this.ctx; g.globalCompositeOperation='source-over'; g.fillStyle='rgba(7,11,26,0.22)'; g.fillRect(0,0,this.W,this.H); g.globalCompositeOperation='lighter';
-    if(Math.random()<0.045) this.launch();
+    if(Math.random()<(this.grand?0.14:0.02)) this.launch();
+    if(this.grand && Math.random()<0.01){ for(let i=0;i<4;i++) setTimeout(()=>this.launch(), i*120); }
     // raketten
-    for(const r of this.rockets){ r.x+=r.vx; r.y+=r.vy; r.vy+=0.12; g.fillStyle=`hsl(${r.hue} 100% 75%)`; g.beginPath(); g.arc(r.x,r.y,2.5,0,7); g.fill(); }
+    for(const r of this.rockets){ r.x+=r.vx; r.y+=r.vy; r.vy+=0.12; g.fillStyle=`hsl(${r.hue} 100% 75%)`; g.beginPath(); g.arc(r.x,r.y,2.5,0,7); g.fill(); if(this.grand) this.parts.push({x:r.x+(Math.random()-.5)*3,y:r.y+4,vx:0,vy:1,life:.6,decay:0.05,hue:40,size:1.2,g:0.02}); }
     this.rockets=this.rockets.filter(r=>{ if(r.vy>-1){ this.explode(r.x,r.y,r.hue); return false;} return true; });
     // deeltjes
-    for(const p of this.parts){ p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.vx*=0.985; p.vy*=0.985; p.life-=p.decay; g.fillStyle=`hsla(${p.hue} 100% 65% / ${Math.max(0,p.life)})`; g.beginPath(); g.arc(p.x,p.y,p.size,0,7); g.fill(); }
+    for(const p of this.parts){ p.x+=p.vx; p.y+=p.vy; p.vy+=(p.g||0.05); p.vx*=0.985; p.vy*=0.985; p.life-=p.decay; const tw=p.sparkle&&Math.random()<0.35?0.2:1; g.fillStyle=`hsla(${p.hue} 100% ${p.sparkle?80:65}% / ${Math.max(0,p.life)*tw})`; g.beginPath(); g.arc(p.x,p.y,p.size,0,7); g.fill(); }
     this.parts=this.parts.filter(p=>p.life>0);
     // naam-fasen: wait -> gather -> hold -> burst
     if(this.name){
@@ -418,7 +464,7 @@ class Fireworks{
         this.letters=this.targets.map(([tx,ty])=>({x:cx+(Math.random()-.5)*60,y:cy+(Math.random()-.5)*60,sx:0,sy:0,tx,ty,hue:30+Math.random()*40,p:0,spd:0.4+Math.random()*0.6}));
         this.letters.forEach(l=>{l.sx=l.x;l.sy=l.y;}); }
       else if(this.phase==='gather'){ const prog=1-this.phaseT/1.8; for(const l of this.letters){ const e=Math.min(1,prog/l.spd*0.9); const k=1-Math.pow(1-e,3); l.x=l.sx+(l.tx-l.sx)*k; l.y=l.sy+(l.ty-l.sy)*k; } if(this.phaseT<=0){this.phase='hold';this.phaseT=2.8;} }
-      else if(this.phase==='hold'){ if(this.phaseT<=0){ this.phase='burst'; this.phaseT=2.2; for(const l of this.letters){ const a=Math.random()*Math.PI*2, s=Math.random()*7+2; l.vx=Math.cos(a)*s; l.vy=Math.sin(a)*s-2; l.life=1; } for(let i=0;i<4;i++) this.explode(this.W/2+(Math.random()-.5)*this.W*.5, this.H*0.26+(Math.random()-.5)*120, Math.random()*360,70); } }
+      else if(this.phase==='hold'){ if(this.phaseT<=0){ this.phase='burst'; this.phaseT=2.2; for(const l of this.letters){ const a=Math.random()*Math.PI*2, s=Math.random()*7+2; l.vx=Math.cos(a)*s; l.vy=Math.sin(a)*s-2; l.life=1; } for(let i=0;i<7;i++) this.explode(this.W/2+(Math.random()-.5)*this.W*.7, this.H*0.26+(Math.random()-.5)*160, Math.random()*360,80); } }
       else if(this.phase==='burst'){ for(const l of this.letters){ l.x+=l.vx; l.y+=l.vy; l.vy+=0.06; l.vx*=0.985; l.life-=0.012; } if(this.phaseT<=0){ this.phase='wait'; this.phaseT=1.5; this.letters=[]; } }
       const tw = this.phase==='hold' ? 0.75+0.25*Math.sin(this.t*9) : 1;
       for(const l of this.letters){ const a = this.phase==='burst'?Math.max(0,l.life):1; g.fillStyle=`hsla(${l.hue} 100% 70% / ${a*tw})`; g.beginPath(); g.arc(l.x,l.y,2.6,0,7); g.fill(); }

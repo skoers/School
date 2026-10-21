@@ -13,7 +13,7 @@
   --bg:#eef4f8; --panel:#ffffff; --fg:#1c2b3a; --muted:#5b6b7b; --line:#d5dfe8;
   --accent:#1d5fa8; --accent-fg:#ffffff;
   --good:#1f9d55; --good-bg:#e4f6ea; --bad:#d64545; --bad-bg:#fcebea;
-  --hl:#ff8a1f; --hl2:#ffc14d;
+  --hl:#ff5a00; --hl2:#ffd400;
   --sea:#a9cde9; --sea-deep:#8fbce0; --land:#f3e3a3; --land-edge:#b7a25a; --other:#d9d4c3; --other-edge:#b9b3a0;
   --display:"Fredoka","Nunito",system-ui,sans-serif; --body:"Nunito",system-ui,sans-serif;
 }
@@ -84,17 +84,21 @@ input[type=text]{font:inherit;font-size:1.4rem;padding:.6rem 1rem;border-radius:
 .wave{font:700 64px var(--display);fill:#2c5d8f}
 .hl-ring{fill:var(--hl);fill-opacity:.3;stroke:var(--hl);stroke-width:8;transform-box:fill-box;transform-origin:center;animation:ring 1.1s ease-in-out infinite}
 @keyframes ring{0%,100%{transform:scale(1)}50%{transform:scale(1.25);fill-opacity:.5}}
-.glow{animation:glow 1.1s ease-in-out infinite}
-@keyframes glow{0%,100%{fill:var(--hl)}50%{fill:var(--hl2)}}
-.dijk.glow{animation:glowstroke 1.1s ease-in-out infinite}
-@keyframes glowstroke{0%,100%{stroke:var(--hl)}50%{stroke:var(--hl2)}}
+.dim{fill:#061a30;fill-opacity:.45}
+.hl-shape{fill:var(--hl);stroke:#5a1600;stroke-width:10;stroke-linejoin:round;animation:shape 1s ease-in-out infinite}
+@keyframes shape{0%,100%{fill:var(--hl);stroke-width:10}50%{fill:var(--hl2);stroke-width:20}}
+.hl-line{fill:none;stroke:var(--hl);stroke-width:28;stroke-linecap:round;animation:line 1s ease-in-out infinite}
+@keyframes line{0%,100%{stroke:var(--hl);stroke-width:28}50%{stroke:var(--hl2);stroke-width:44}}
+.hl-dot{fill:#fff;stroke:#222;stroke-width:3}
 .goodfill{fill:var(--good) !important} .badfill{fill:var(--bad) !important}
+.hl-shape.goodfill,.hl-shape.badfill{animation:none;stroke:#fff}
+.hl-line.goodfill{animation:none;stroke:var(--good)} .hl-line.badfill{animation:none;stroke:var(--bad)}
 .hits *{pointer-events:none;fill:#000;fill-opacity:0;stroke:none}
 .klik .hits *{pointer-events:all;cursor:pointer}
 .klik .hits *:hover{fill:var(--hl);fill-opacity:.35}
 .hits line{stroke:#000;stroke-opacity:0;stroke-width:40;stroke-linecap:round}
 .klik .hits line:hover{stroke:var(--hl);stroke-opacity:.5}
-@media (prefers-reduced-motion:reduce){.hl-ring,.glow,.dijk.glow{animation:none;fill:var(--hl)} .dijk.glow{stroke:var(--hl)}}
+@media (prefers-reduced-motion:reduce){.hl-ring,.hl-shape,.hl-line{animation:none}}
 
 /* Eindscherm */
 #end{align-items:center;justify-content:flex-end;text-align:center;gap:1rem;position:relative;padding-bottom:4vh}
@@ -282,16 +286,23 @@ function drawHits(){
   add(el('line',{x1:542,y1:645,x2:210,y2:880}),'afsluitdijk');
   for(const it of ITEMS){ if(it.shape) continue; add(el('circle',{cx:it.x,cy:it.y,r:48}),it.id); }
 }
-function clearHighlight(){
-  hl.innerHTML='';
-  map.querySelectorAll('.glow,.goodfill,.badfill').forEach(e=>e.classList.remove('glow','goodfill','badfill'));
-}
+function clearHighlight(){ hl.innerHTML=''; }
+// Tekent een kopie van het gezochte gebied bovenop een gedimde kaart, zodat het echt opvalt.
 function highlight(id, cls='glow'){
   const it=byId[id];
-  if(id==='waddeneilanden'){ EILANDEN.forEach(e=>document.getElementById(byId[e].shape).classList.add(cls)); hl.append(el('circle',{class:'hl-ring',cx:it.x,cy:it.y,r:46})); return; }
-  if(it.shape) document.getElementById(it.shape).classList.add(cls);
-  if(!it.shape || it.soort==='bijzonderheid'){
-    const ring = el('circle',{class:'hl-ring',cx:it.x,cy:it.y,r:46}); if(cls!=='glow'){ ring.style.animation='none'; ring.style.fill=`var(--${cls==='goodfill'?'good':'bad'})`; ring.style.stroke=ring.style.fill; } hl.append(ring);
+  if(cls==='glow' && !hl.querySelector('.dim')) hl.prepend(el('rect',{class:'dim',x:0,y:0,width:1565,height:1080}));
+  const ids = id==='waddeneilanden' ? EILANDEN : (it.shape ? [id] : []);
+  for(const sid of ids){
+    const src=document.getElementById(byId[sid].shape);
+    if(src.tagName==='line') hl.append(el('line',{class:'hl-line '+cls,x1:src.getAttribute('x1'),y1:src.getAttribute('y1'),x2:src.getAttribute('x2'),y2:src.getAttribute('y2')}));
+    else hl.append(el('polygon',{class:'hl-shape '+cls,points:src.getAttribute('points')}));
+  }
+  if(id==='waddenzee'){ for(const e of EILANDEN){ const u=el('use',{href:'#'+byId[e].shape}); u.style.opacity='.55'; hl.append(u); } }
+  if(!it.shape || it.soort==='bijzonderheid' || id==='waddeneilanden'){
+    const ring = el('circle',{class:'hl-ring',cx:it.x,cy:it.y,r:46});
+    if(cls!=='glow'){ ring.style.animation='none'; ring.style.fill=`var(--${cls==='goodfill'?'good':'bad'})`; ring.style.stroke=ring.style.fill; }
+    hl.append(ring);
+    if(!it.shape && id!=='waddeneilanden') hl.append(el('circle',{class:'hl-dot',cx:it.x,cy:it.y,r:11}));
   }
 }
 

@@ -1,8 +1,7 @@
-# Spelletjes
+# School
 
-Oefenspellen die in de browser werken, ook op tablet en telefoon.
+Deze repository stuurt alleen door. De spelletjes staan in
+[havenrakkers](https://github.com/skoers/havenrakkers) en zijn te spelen op
+https://skoers.github.io/havenrakkers/
 
-Startpagina met keuzescherm: https://skoers.github.io/school/
-
-- **Rekenspel 5 jarigen** (`rekenspel/`): tellen, erbij en eraf, wordt vanzelf moeilijker.
-- **Friesland Kaartspel** (`friesland-spel/`): plaatsen, eilanden en wateren van Friesland, groep 6.
+De oude link https://skoers.github.io/School/ blijft werken en gaat vanzelf naar het keuzescherm.
